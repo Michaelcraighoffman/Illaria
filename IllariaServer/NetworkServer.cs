@@ -12,7 +12,7 @@ using NLog;
 
 namespace IllariaServer
 {
-    class NetworkServer
+    class NetworkServer : INetworkManager
     {
         private NetServer networkServer;
         private bool ServerRunning;
@@ -106,6 +106,7 @@ namespace IllariaServer
                 {
                     logger.Warn(String.Format("Message queue running slowly.  Lagged {0} ms.", elapsed));
                 }
+                Thread.Sleep(250);
             }
             logger.Info("Stopping System Monitor loop.");
         }
@@ -128,16 +129,19 @@ namespace IllariaServer
                         break;
                     default:
                         logger.Warn("Malformed message.  Invalid desination byte: " + (byte)dest);
+                        RecycleMessage(msg);
                         break;
                 }
             }
             catch (IndexOutOfRangeException)
             {
                 logger.Warn("Malformed message.  Could not read desination byte.");
+                RecycleMessage(msg);
             }
             catch (Exception e)
             {
                 logger.Warn("Unknown exception during Message routing: ", e);
+                RecycleMessage(msg);
             }
         }
 
@@ -151,9 +155,10 @@ namespace IllariaServer
                     case SystemMessageType.GetMessageLagTime:
                         var elapsed = DateTime.Now - lastEmptyQueue;
                         NetOutgoingMessage result = networkServer.CreateMessage();
+                        result.Write((byte)MessageDestination.System);
                         result.Write((byte)SystemMessageType.GetMessageLagTime);
                         result.Write((Int32)elapsed.TotalMilliseconds);
-                        //networkServer.SendMessage(result, msg.SenderConnection, NetDeliveryMethod.ReliableSequenced,(int)ReliableSequencedChannels.SystemMessageLagTime);
+                        networkServer.SendMessage(result, msg.SenderConnection, NetDeliveryMethod.ReliableSequenced,(int)ReliableSequencedChannels.SystemMessageLagTime);
                         logger.Info("Current Message lag time: " + elapsed.TotalMilliseconds);
                         break;
                     default:
@@ -164,7 +169,11 @@ namespace IllariaServer
             catch (Exception e)
             {
                 logger.Warn("Unknown exception adding System Message: ", e);
-            } 
+            }
+            finally
+            {
+                RecycleMessage(msg);
+            }
         }
 
         public void RecycleMessage(NetIncomingMessage msg)

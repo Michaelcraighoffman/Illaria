@@ -42,6 +42,25 @@ namespace IllariaShared
         GetConnectedUsers=2
     }
 
+    public enum GameMessageType : ushort
+    {
+        /// <summary>
+        /// Flag to OR into messages to signify they are from a client
+        /// </summary>
+        ClientFlag=0,
+
+        /// <summary>
+        /// An update with the new coordinates of a player
+        /// </summary>
+        CharacterLocation=1,
+
+
+        /// <summary>
+        /// Flag to OR into messages to signify they are from the authoritative server
+        /// </summary>
+        ServerFlag = 0x8000
+    }
+
     public enum ReliableSequencedChannels : byte
     {
         SystemMessageLagTime=0
