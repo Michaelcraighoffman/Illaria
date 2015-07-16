@@ -14,3 +14,4 @@ namespace IllariaShared
         public Int32 y { get; set; }
     }
 }
+

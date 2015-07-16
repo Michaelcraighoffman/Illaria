@@ -9,20 +9,22 @@ using NLog;
 
 namespace IllariaShared
 {
-    public class GameManager
+    public class GameServer
     {
         private ConcurrentQueue<NetIncomingMessage> unprocessedMessages;
         private static Logger logger = LogManager.GetCurrentClassLogger();
+        private List<Player> players; 
         /// <summary>
-        /// Whether or not this GameManager is acting as an authoritative server
+        /// Whether or not this GameServer is acting as an authoritative server
         /// </summary>
         private bool actingAsServer;
         private INetworkManager networkManager;
 
-        public GameManager(INetworkManager netManager, bool CreateAsServer) {
+        public GameServer(INetworkManager netManager, IEnumerable<Player> newPlayers, bool CreateAsServer) {
             unprocessedMessages = new ConcurrentQueue<NetIncomingMessage>();
             networkManager = netManager;
             actingAsServer = CreateAsServer;
+            players = new List<Player>(newPlayers);
         }
 
 
@@ -34,11 +36,11 @@ namespace IllariaShared
             }
             catch (Exception e)
             {
-                logger.Warn("Unknown exception adding GameManager Message: ", e);
+                logger.Warn("Unknown exception adding GameServer Message: ", e);
                 networkManager.RecycleMessage(msg);
             }
         }
-        private void ProcessMessage()
+        public void ProcessMessage()
         {
             NetIncomingMessage msg;
             if (!unprocessedMessages.TryDequeue(out msg))
@@ -79,6 +81,10 @@ namespace IllariaShared
             {
                 networkManager.RecycleMessage(msg);
             }
+        }
+        public void Shutdown()
+        {
+
         }
     }
 }

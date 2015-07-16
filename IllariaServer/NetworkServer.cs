@@ -20,6 +20,7 @@ namespace IllariaServer
         private Thread systemMonitorThread;
         private Thread messageReceiveLoopThread;
         private DateTime lastEmptyQueue;
+        private GameManager gameManager;
         /// <summary>
         /// The maximum number of clients that can be connected to the server
         /// </summary>
@@ -29,6 +30,7 @@ namespace IllariaServer
         public NetworkServer()
         {
             maxClients = 100;
+            gameManager = new GameManager(this);
         }
 
         public void Start()
@@ -74,12 +76,15 @@ namespace IllariaServer
                         case NetIncomingMessageType.VerboseDebugMessage:
                         case NetIncomingMessageType.DebugMessage:
                             logger.Debug(msg.ReadString());
+                            networkServer.Recycle(msg);
                             break;
                         case NetIncomingMessageType.WarningMessage:
                             logger.Warn(msg.ReadString());
+                            networkServer.Recycle(msg);
                             break;
                         case NetIncomingMessageType.ErrorMessage:
                             logger.Error(msg.ReadString());
+                            networkServer.Recycle(msg);
                             break;
                         case NetIncomingMessageType.Data:
                         case NetIncomingMessageType.UnconnectedData:
@@ -89,9 +94,9 @@ namespace IllariaServer
                             logger.Warn("Unhandled type: " + msg.MessageType);
                             break;
                     }
-                    networkServer.Recycle(msg);
                 }
                 lastEmptyQueue = DateTime.Now;
+                Thread.Sleep(0);
             }
             logger.Info("Stopping message receiving loop.");
         }
@@ -106,7 +111,7 @@ namespace IllariaServer
                 {
                     logger.Warn(String.Format("Message queue running slowly.  Lagged {0} ms.", elapsed));
                 }
-                Thread.Sleep(250);
+                Thread.Sleep(10);
             }
             logger.Info("Stopping System Monitor loop.");
         }
@@ -119,7 +124,7 @@ namespace IllariaServer
                 switch (dest)
                 {
                     case MessageDestination.Game:
-                        //GameManager.AddMessage(msg)
+                        gameManager.AddMessage(msg);
                         break;
                     case MessageDestination.Lobby:
                         //LobbyManager.AddMessage(msg)
