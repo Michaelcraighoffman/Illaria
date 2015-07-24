@@ -51,14 +51,15 @@ namespace IllariaShared
 
         /// <summary>
         /// An update with the new coordinates of a player
+        /// S->C
         /// </summary>
         CharacterLocation=1,
 
-
         /// <summary>
-        /// Flag to OR into messages to signify they are from the authoritative server
+        /// An update of a player's destination
+        /// C<->S
         /// </summary>
-        ServerFlag = 0x8000
+        PlayerDestination=2
     }
 
     public enum ReliableSequencedChannels : byte

@@ -8,7 +8,7 @@ using IllariaShared;
 using System.Collections.Concurrent;
 using System.Threading;
 using NLog;
-
+using NLog.Fluent;
 
 namespace IllariaServer
 {
@@ -20,7 +20,7 @@ namespace IllariaServer
         private Thread systemMonitorThread;
         private Thread messageReceiveLoopThread;
         private DateTime lastEmptyQueue;
-        private GameManager gameManager;
+        private List<Player> players;
         /// <summary>
         /// The maximum number of clients that can be connected to the server
         /// </summary>
@@ -29,14 +29,15 @@ namespace IllariaServer
 
         public NetworkServer()
         {
-            maxClients = 100;
-            gameManager = new GameManager(this);
+            maxClients = 12;
+            players = new List<Player>(maxClients);
         }
 
         public void Start()
         {
             NetPeerConfiguration config = new NetPeerConfiguration("Illaria");
             config.Port = 17541;
+            config.MaximumConnections = maxClients + 1;
 
             networkServer = new NetServer(config);
             networkServer.Start();
@@ -69,10 +70,11 @@ namespace IllariaServer
             NetIncomingMessage msg;
             while (ServerRunning)
             {
-                while ((msg = networkServer.ReadMessage()) != null)
+                while ((msg = networkServer.WaitMessage(100)) != null)
                 {
                     switch (msg.MessageType)
                     {
+                        
                         case NetIncomingMessageType.VerboseDebugMessage:
                         case NetIncomingMessageType.DebugMessage:
                             logger.Debug(msg.ReadString());
@@ -96,7 +98,7 @@ namespace IllariaServer
                     }
                 }
                 lastEmptyQueue = DateTime.Now;
-                Thread.Sleep(0);
+                //Thread.Sleep(200);
             }
             logger.Info("Stopping message receiving loop.");
         }
@@ -106,12 +108,11 @@ namespace IllariaServer
             logger.Info("Starting system monitor loop.");
             while (ServerRunning)
             {
-                var elapsed = (int)(DateTime.Now - lastEmptyQueue).TotalMilliseconds;
-                if (elapsed > 15)
+                if ((int)(DateTime.Now - lastEmptyQueue).TotalMilliseconds > 200)
                 {
-                    logger.Warn(String.Format("Message queue running slowly.  Lagged {0} ms.", elapsed));
+                    logger.Warn(String.Format("Message queue running slowly.  Lagged {0} ms.", (int)(DateTime.Now - lastEmptyQueue).TotalMilliseconds));
                 }
-                Thread.Sleep(10);
+                Thread.Sleep(100);
             }
             logger.Info("Stopping System Monitor loop.");
         }
@@ -124,13 +125,10 @@ namespace IllariaServer
                 switch (dest)
                 {
                     case MessageDestination.Game:
-                        gameManager.AddMessage(msg);
-                        break;
-                    case MessageDestination.Lobby:
-                        //LobbyManager.AddMessage(msg)
+                        ProcessGameMessage(msg);
                         break;
                     case MessageDestination.System:
-                        AddMessage(msg);
+                        ProcessServerMessage(msg);
                         break;
                     default:
                         logger.Warn("Malformed message.  Invalid desination byte: " + (byte)dest);
@@ -150,7 +148,50 @@ namespace IllariaServer
             }
         }
 
-        private void AddMessage(NetIncomingMessage msg)
+        private void ProcessGameMessage(NetIncomingMessage msg)
+        {
+            try
+            {
+                GameMessageType m = (GameMessageType)msg.ReadByte();
+                switch (m)
+                {
+                    case GameMessageType.PlayerDestination:
+                        Byte playerId = msg.ReadByte();
+                        if(playerId>maxClients)
+                        {
+                            logger.ConditionalTrace("Player with uniqueId " + msg.SenderConnection.RemoteUniqueIdentifier + " tried to move out of range player " + playerId);
+                        }
+
+                        if(msg.SenderConnection.RemoteUniqueIdentifier == players[playerId].UniqueId)
+                        {
+                            Point location;
+                            location.x = msg.ReadInt32();
+                            location.y = msg.ReadInt32();
+                            players[playerId].UpdateDestination(location);
+                        }
+                        else
+                        {
+                            logger.ConditionalTrace("Player with uniqueId "+ msg.SenderConnection.RemoteUniqueIdentifier+" tried to move non-owned player "+playerId);
+                        }
+                        break;
+                    case GameMessageType.CharacterLocation:
+                        break;
+                    default:
+                        logger.Warn("Malformed message.  Invalid message type byte: " + (byte)m);
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                logger.Warn(e, "Unknown processing Game Message");
+            }
+            finally
+            {
+                RecycleMessage(msg);
+            }
+        }
+
+        private void ProcessServerMessage(NetIncomingMessage msg)
         {
             try
             {

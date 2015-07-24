@@ -44,7 +44,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Constants.cs" />
-    <Compile Include="GameServer.cs" />
     <Compile Include="Interfaces\INetworkManager.cs" />
     <Compile Include="Messages\Game\CharacterLocation.cs" />
     <Compile Include="Player.cs" />

@@ -9,8 +9,19 @@ namespace IllariaShared
 {
     public class Player
     {
-        
+        public long UniqueId { get { return uniqueId; } }
+        private long uniqueId;
+        private Point destination;
 
+        public Player(int id)
+        {
+            uniqueId = id;
+        }
+
+        public void UpdateDestination(Point target)
+        {
+            destination = target;
+        }
 
     }
 }
