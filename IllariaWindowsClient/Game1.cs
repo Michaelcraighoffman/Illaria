@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System.Collections.Generic;
 
 namespace Illaria
 {
@@ -11,6 +12,9 @@ namespace Illaria
     {
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
+
+        NetworkClient netClient = new NetworkClient();
+        List<string> messages = new List<string>();
 
         public Game1()
             : base()
@@ -28,6 +32,8 @@ namespace Illaria
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
+
+            netClient.Connect("127.0.0.1", 17540);
 
             base.Initialize();
         }

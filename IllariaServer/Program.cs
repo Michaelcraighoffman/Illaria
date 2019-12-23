@@ -16,8 +16,6 @@ namespace IllariaServer
             {
                 NetworkServer n = new NetworkServer();
                 n.Start();
-                Console.ReadKey();
-                n.Stop();
             }
             catch (Exception e)
             {

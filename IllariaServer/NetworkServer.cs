@@ -21,6 +21,7 @@ namespace IllariaServer
         private Thread messageReceiveLoopThread;
         private DateTime lastEmptyQueue;
         private List<Player> players;
+        private ServerConsole console;
         /// <summary>
         /// The maximum number of clients that can be connected to the server
         /// </summary>
@@ -31,12 +32,14 @@ namespace IllariaServer
         {
             maxClients = 12;
             players = new List<Player>(maxClients);
+            console = new ServerConsole();
+            console.Start(Console.WindowHeight, (string s) => { return ProcessLocalCommand(s); });
         }
 
         public void Start()
         {
             NetPeerConfiguration config = new NetPeerConfiguration("Illaria");
-            config.Port = 17541;
+            config.Port = 17540;
             config.MaximumConnections = maxClients + 1;
 
             networkServer = new NetServer(config);
@@ -61,12 +64,13 @@ namespace IllariaServer
             {
                 logger.Warn("System Processing thread did not finish.");
             }
+            console.Stop();
             networkServer.Shutdown("Shutting Down");
         }
 
         private void MessageReceiveLoop()
         {
-            logger.Info("Starting message receiving loop.");
+            console.WriteInfo("Starting message receiving loop.");
             NetIncomingMessage msg;
             while (ServerRunning)
             {
@@ -77,15 +81,15 @@ namespace IllariaServer
                         
                         case NetIncomingMessageType.VerboseDebugMessage:
                         case NetIncomingMessageType.DebugMessage:
-                            logger.Debug(msg.ReadString());
+                            console.WriteInfo(msg.ReadString());
                             networkServer.Recycle(msg);
                             break;
                         case NetIncomingMessageType.WarningMessage:
-                            logger.Warn(msg.ReadString());
+                            console.WriteWarn(msg.ReadString());
                             networkServer.Recycle(msg);
                             break;
                         case NetIncomingMessageType.ErrorMessage:
-                            logger.Error(msg.ReadString());
+                            console.WriteError(msg.ReadString());
                             networkServer.Recycle(msg);
                             break;
                         case NetIncomingMessageType.Data:
@@ -93,28 +97,28 @@ namespace IllariaServer
                             RouteMessage(msg);
                             break;
                         default:
-                            logger.Warn("Unhandled type: " + msg.MessageType);
+                            console.WriteWarn("Unhandled type: " + msg.MessageType);
                             break;
                     }
                 }
                 lastEmptyQueue = DateTime.Now;
                 //Thread.Sleep(200);
             }
-            logger.Info("Stopping message receiving loop.");
+            console.WriteInfo("Stopping message receiving loop.");
         }
 
         private void SystemMonitorLoop()
         {
-            logger.Info("Starting system monitor loop.");
+            console.WriteInfo("Starting system monitor loop.");
             while (ServerRunning)
             {
                 if ((int)(DateTime.Now - lastEmptyQueue).TotalMilliseconds > 200)
                 {
-                    logger.Warn(String.Format("Message queue running slowly.  Lagged {0} ms.", (int)(DateTime.Now - lastEmptyQueue).TotalMilliseconds));
+                    console.WriteWarn(String.Format("Message queue running slowly.  Lagged {0} ms.", (int)(DateTime.Now - lastEmptyQueue).TotalMilliseconds));
                 }
                 Thread.Sleep(100);
             }
-            logger.Info("Stopping System Monitor loop.");
+            console.WriteInfo("Stopping System Monitor loop.");
         }
 
         private void RouteMessage(NetIncomingMessage msg)
@@ -131,19 +135,19 @@ namespace IllariaServer
                         ProcessServerMessage(msg);
                         break;
                     default:
-                        logger.Warn("Malformed message.  Invalid desination byte: " + (byte)dest);
+                        console.WriteWarn("Malformed message.  Invalid desination byte: " + (byte)dest);
                         RecycleMessage(msg);
                         break;
                 }
             }
             catch (IndexOutOfRangeException)
             {
-                logger.Warn("Malformed message.  Could not read desination byte.");
+                console.WriteWarn("Malformed message.  Could not read desination byte.");
                 RecycleMessage(msg);
             }
             catch (Exception e)
             {
-                logger.Warn("Unknown exception during Message routing: ", e);
+                console.WriteWarn("Unknown exception during Message routing: ", e);
                 RecycleMessage(msg);
             }
         }
@@ -177,13 +181,13 @@ namespace IllariaServer
                     case GameMessageType.CharacterLocation:
                         break;
                     default:
-                        logger.Warn("Malformed message.  Invalid message type byte: " + (byte)m);
+                        console.WriteWarn("Malformed message.  Invalid message type byte: " + (byte)m);
                         break;
                 }
             }
             catch (Exception e)
             {
-                logger.Warn(e, "Unknown processing Game Message");
+                //console.WriteWarn(e, "Unknown processing Game Message");
             }
             finally
             {
@@ -205,20 +209,37 @@ namespace IllariaServer
                         result.Write((byte)SystemMessageType.GetMessageLagTime);
                         result.Write((Int32)elapsed.TotalMilliseconds);
                         networkServer.SendMessage(result, msg.SenderConnection, NetDeliveryMethod.ReliableSequenced,(int)ReliableSequencedChannels.SystemMessageLagTime);
-                        logger.Info("Current Message lag time: " + elapsed.TotalMilliseconds);
+                        console.WriteInfo("Current Message lag time: " + elapsed.TotalMilliseconds);
                         break;
                     default:
-                        logger.Warn("Malformed message.  Invalid message type byte: " + (byte)m);
+                        console.WriteWarn("Malformed message.  Invalid message type byte: " + (byte)m);
                         break;
                 }
             }
             catch (Exception e)
             {
-                logger.Warn("Unknown exception adding System Message: ", e);
+                console.WriteWarn("Unknown exception adding System Message: ", e);
             }
             finally
             {
                 RecycleMessage(msg);
+            }
+        }
+
+        public bool ProcessLocalCommand(string command)
+        {
+            var fixedCommand = command.Trim().ToLowerInvariant();
+
+            if(fixedCommand=="stop")
+            {
+                console.WriteWarn("Shutting down server!");
+                Stop();
+                return true;
+            }
+            else
+            {
+                console.WriteError("Unknown command: " + fixedCommand);
+                return false;
             }
         }
 

@@ -26,20 +26,19 @@ namespace Illaria
         public bool Connect(string host, int port)
         {
             NetPeerConfiguration config = new NetPeerConfiguration("Illaria");
-            config.Port = 17540;
 
             networkClient = new NetClient(config);
             networkClient.Start();
-            networkClient.Connect(host, port);
-            DateTime ConnectionAttempt = DateTime.Now;
-            while (networkClient.ConnectionStatus != NetConnectionStatus.Disconnected &&
-                  networkClient.ConnectionStatus != NetConnectionStatus.Disconnecting &&
-                  networkClient.ConnectionStatus != NetConnectionStatus.None &&
-                  (DateTime.Now-ConnectionAttempt).TotalSeconds < 10)
+            var connectionAttempt=networkClient.Connect(host, port);
+            Thread.Sleep(100);
+            DateTime connectionAttemptTime = DateTime.Now;
+            while (connectionAttempt.Status != NetConnectionStatus.Disconnected &&
+                  networkClient.Status != NetPeerStatus.Running &&
+                  (DateTime.Now-connectionAttemptTime).TotalSeconds < 10)
             {
                 Thread.Sleep(100);
             }
-            if (networkClient.ConnectionStatus != NetConnectionStatus.Connected)
+            if (networkClient.Status != NetPeerStatus.Running)
             {
                 networkClient.Disconnect("");
                 logger.Warn("Could not connect to server: " + host + " : " + port);
