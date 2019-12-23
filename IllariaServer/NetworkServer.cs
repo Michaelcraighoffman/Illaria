@@ -96,13 +96,17 @@ namespace IllariaServer
                         case NetIncomingMessageType.UnconnectedData:
                             RouteMessage(msg);
                             break;
+                        case NetIncomingMessageType.StatusChanged:
+                            console.WriteInfo("Client {0} is now: {1}", msg.SenderConnection.RemoteUniqueIdentifier, 
+                                Enum.GetName(typeof(NetConnectionStatus), msg.SenderConnection.Status));
+                            break;
                         default:
                             console.WriteWarn("Unhandled type: " + msg.MessageType);
                             break;
                     }
                 }
                 lastEmptyQueue = DateTime.Now;
-                //Thread.Sleep(200);
+                //Thread.Sleep(1);
             }
             console.WriteInfo("Stopping message receiving loop.");
         }
@@ -229,18 +233,48 @@ namespace IllariaServer
         public bool ProcessLocalCommand(string command)
         {
             var fixedCommand = command.Trim().ToLowerInvariant();
+            try {
+                if (fixedCommand == "stop")
+                {
+                    console.WriteWarn("Shutting down server!");
+                    Stop();
+                    return true;
+                }
+                if (fixedCommand == "list connections")
+                {
+                    var connections = networkServer.Connections.Select(x => x.RemoteUniqueIdentifier.ToString());
+                    console.WriteInfo("Active Connections: {0}", String.Join(", ", connections));
+                    return true;
+                }
+                if (fixedCommand.StartsWith("kick"))
+                {
+                    var connectionId = fixedCommand.Split(' ')[1];
+                    if(String.IsNullOrWhiteSpace(connectionId))
+                    {
+                        console.WriteError("No connection specified");
+                        return false;
+                    }
 
-            if(fixedCommand=="stop")
-            {
-                console.WriteWarn("Shutting down server!");
-                Stop();
-                return true;
+                    var applicableConnections = networkServer.Connections.Where(x => x.RemoteUniqueIdentifier.ToString().Contains(connectionId));
+                    if(applicableConnections.Count()==0)
+                    {
+                        console.WriteError("{0} does not match an active connection", connectionId);
+                        return false;
+                    }
+                    if (applicableConnections.Count()> 1)
+                    {
+                        console.WriteError("{0} matches multiple active connections: {1}", connectionId, String.Join(", ", applicableConnections.Select(x=>x.RemoteUniqueIdentifier)));
+                        return false;
+                    }
+                    // Send a friendly kick message as well
+                    console.WriteInfo("Kicking {0}", applicableConnections.First().RemoteUniqueIdentifier);
+                    applicableConnections.First().Disconnect("Kicked by admin");
+                    return true;
+                }
             }
-            else
-            {
-                console.WriteError("Unknown command: " + fixedCommand);
-                return false;
-            }
+            catch(Exception) { }
+            console.WriteError("Unknown command: " + fixedCommand);
+            return false;
         }
 
         public void RecycleMessage(NetIncomingMessage msg)
